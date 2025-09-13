@@ -1,0 +1,91 @@
+{
+  "timestamp": "2025-09-12T20:50:15",
+  "name": "Mustermensch,Maxi",
+  "birthday": "2000-09-12",
+  "address": {
+    "streetAndHouseNo": "Musterstraße 1",
+    "postCode": "123456",
+    "place": "Musterstadt",
+    "countryCode": "D"
+  },
+  "communication": {
+    "phone": "123456789",
+    "mail": "maxi@muster.com"
+  },
+  "companions": [
+    {
+      "name": "Nicki,Musterkind",
+      "birthday": "2020-09-01"
+    }
+  ],
+  "data": [
+    {
+      "groupId": "gesundheitsdaten",
+      "groupTitle": "Gesundheitsdaten",
+      "formData": [
+        {
+          "key": "weight",
+          "value": "60"
+        },
+        {
+          "key": "height",
+          "value": "175"
+        },
+        {
+          "key": "allergies",
+          "value": "Nüsse"
+        },
+        {
+          "key": "psychiatricDiseases",
+          "value": "Schlafstörungen"
+        },
+        {
+          "key": "riskFactors",
+          "value": null
+        }
+      ]
+    },
+    {
+      "groupId": "kuranmeldung",
+      "groupTitle": "Kuranmeldung",
+      "formData": [
+        {
+          "key": "clinic",
+          "value": "Evang. Mutter-Kind-Kurklinik Scheidegg"
+        },
+        {
+          "key": "startDate",
+          "value": "2025-09-12"
+        },
+        {
+          "key": "alternativeStartDate",
+          "value": "Ja"
+        }
+      ]
+    },
+    {
+      "groupId": "krankenkasse",
+      "groupTitle": "Krankenkasse",
+      "formData": [
+        {
+          "key": "healthInsurance",
+          "value": "Musterkasse"
+        },
+        {
+          "key": "healthInsuranceApproval",
+          "value": "Ja"
+        }
+      ]
+    },
+    {
+      "groupId": "import_details",
+      "groupTitle": "Import Details",
+      "formData": [
+        {
+          "key": "importId",
+          "value": 1
+        }
+      ]
+    }
+  ]
+}
