@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Excel zu JSON</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        text-align: center;
+        padding: 2rem;
+      }
+
+      #dropzone {
+        border: 2px dashed #555;
+        padding: 2rem;
+        margin: 2rem auto;
+        max-width: 400px;
+        border-radius: 10px;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Excel zu JSON Konverter</h1>
+
+    <div id="dropzone">📄 Datei hier ablegen</div>
+    <p id="status"></p>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.0/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.6.0/moment-timezone-with-data.min.js"></script>
+    <script>
+      const dropzone = document.getElementById("dropzone");
+      const status = document.getElementById("status");
+
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.style.background = "#eee";
+      });
+
+      dropzone.addEventListener("dragleave", () => {
+        dropzone.style.background = "";
+      });
+
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.style.background = "";
+        const file = e.dataTransfer.files[0];
+        if (!file || !file.name.endsWith(".xlsx")) {
+          status.textContent = "Bitte eine gültige .xlsx-Datei hochladen.";
+          return;
+        }
+        processExcel(file);
+      });
+
+      function sanitize(str) {
+        return (str || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "") // Akzente entfernen
+          .replace(/ä/g, "ae")
+          .replace(/ö/g, "oe")
+          .replace(/ü/g, "ue")
+          .replace(/ß/g, "ss")
+          .replace(/\s+/g, "_")
+          .replace(/[^a-zA-Z0-9_-]/g, "");
+      }
+
+      function readExcel(file) {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = function ({ target }) {
+            const data = new Uint8Array(target.result);
+            const workbook = XLSX.read(data, {
+              type: "array",
+              cellDates: true,
+            });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet, { defval: null });
+            resolve(json);
+          };
+          reader.readAsArrayBuffer(file);
+        });
+      }
+
+      function formatDate(datetime) {
+        return moment(datetime).tz("Europe/Berlin").format("YYYY-MM-DD");
+      }
+
+      function formatDateTime(datetime) {
+        return moment(datetime)
+          .tz("Europe/Berlin")
+          .format("YYYY-MM-DDTHH:mm:ss");
+      }
+
+      function extractChildren(row) {
+        const numberOfChildren = parseInt(
+          row["Wie viele Kinder werden mit zur Kur anreisen?"]
+        );
+        if (isNaN(numberOfChildren) || numberOfChildren < 1) {
+          return [];
+        } else if (numberOfChildren === 1) {
+          return [
+            {
+              name: [row["Vorname"], row["Nachname"]].join(","),
+              birthday: formatDate(row["Geburtsdatum"]),
+            },
+          ];
+        }
+
+        const children = [];
+
+        for (let i = 1; i <= numberOfChildren; i++) {
+          const firstName = row[`Vorname (Kind ${i} von ${numberOfChildren})`];
+          const lastName = row[`Nachname (Kind ${i} von ${numberOfChildren})`];
+          const dateOfBirth =
+            row[`Geburtsdatum (Kind ${i} von ${numberOfChildren})`];
+
+          if (firstName && lastName && dateOfBirth) {
+            children.push({
+              name: [lastName, firstName].join(","),
+              birthday: formatDate(dateOfBirth),
+              child: true,
+            });
+          }
+        }
+        return children;
+      }
+
+      function toJson(row) {
+        console.log(row);
+        const timestamp = row["Fertigstellungszeit"];
+        const firstName = row["Bitte geben Sie Ihren Vornamen an"];
+        const lastName = row["Bitte geben Sie Ihren Nachnamen an"];
+        const dateOfBirth = row["Bitte geben Sie Ihr Geburtsdatum an"];
+        const city = row["Ort"];
+        const plz = row["PLZ"];
+        const street = row["Straße und Hausnummer"];
+        const phone = row["Bitte geben Sie Ihre Telefonnummer an"];
+        const mail = row["Bitte geben Sie Ihre E-Mail-Adresse an"];
+
+        const children = extractChildren(row);
+
+        // Gesundheitsdaten
+        const weight = row["Ihr Gewicht (in kg)"];
+        const height = row["Ihre Körpergröße (in cm)"];
+        const allergies =
+          row[
+            "Allergien, Nahrungsmittelunverträglichkeit (können nur mit ärztlichem Attest berücksichtigt werden)"
+          ];
+        const psychiatricDiseases =
+          row["Welche besonderen psychosozialen Belastungen bringen Sie mit?"];
+        const riskFactors =
+          row[
+            "Besonderheiten und Risiken, die wir bei Ihnen und Ihrem Kind oder Ihren Kindern beachten müssen"
+          ];
+
+        // Kuranmeldung
+        const clinic = row["Für welche Klinik möchten Sie sich anmelden?"];
+        const startDate =
+          row[
+            "Bitte wählen Sie das Startdatum Ihres gewünschten Kurtermins aus."
+          ];
+        const alternativeStartDate =
+          row[
+            "Möchten Sie auf die Warteliste für einen anderen verfügbaren Kurtermin? Wenn ja, für welche(n) Kurtermin(e)?"
+          ];
+
+        // Krankenkasse
+        const healthInsurance =
+          row["Bei welcher Krankenkasse sind Sie versichert?"];
+        const healthInsuranceApproval =
+          row["Haben Sie bereits eine Bewilligung von Ihrer Krankenkasse?"];
+
+        const id = row["ID"];
+
+        return {
+          timestamp: formatDateTime(timestamp),
+          name: [lastName, firstName].join(","),
+          birthday: formatDate(dateOfBirth),
+          address: {
+            streetAndHouseNo: street,
+            postCode: plz,
+            place: city,
+            countryCode: "D",
+          },
+          communication: {
+            phone: phone,
+            mail: mail,
+          },
+          companions: children,
+          data: [
+            {
+              groupId: "gesundheitsdaten",
+              groupTitle: "Gesundheitsdaten",
+              formData: [
+                {
+                  key: "weight",
+                  value: weight,
+                },
+                {
+                  key: "height",
+                  value: height,
+                },
+                {
+                  key: "allergies",
+                  value: allergies,
+                },
+                {
+                  key: "psychiatricDiseases",
+                  value: psychiatricDiseases,
+                },
+                {
+                  key: "riskFactors",
+                  value: riskFactors,
+                },
+              ],
+            },
+            {
+              groupId: "kuranmeldung",
+              groupTitle: "Kuranmeldung",
+              formData: [
+                {
+                  key: "clinic",
+                  value: clinic,
+                },
+                {
+                  key: "startDate",
+                  value: formatDate(startDate),
+                },
+                {
+                  key: "alternativeStartDate",
+                  value: alternativeStartDate,
+                },
+              ],
+            },
+            {
+              groupId: "krankenkasse",
+              groupTitle: "Krankenkasse",
+              formData: [
+                {
+                  key: "healthInsurance",
+                  value: healthInsurance,
+                },
+                {
+                  key: "healthInsuranceApproval",
+                  value: healthInsuranceApproval,
+                },
+              ],
+            },
+            {
+              groupId: "import_details",
+              groupTitle: "Import Details",
+              formData: [
+                {
+                  key: "importId",
+                  value: id,
+                },
+              ],
+            },
+          ],
+        };
+      }
+
+      async function createZip(json) {
+        const zip = new JSZip();
+        return new Promise((resolve) => {
+          json.forEach((importData) => {
+            const id = importData.data
+              .find((d) => d.groupId === "import_details")
+              .formData.find((f) => f.key === "importId").value;
+            let filename = `anmeldung_${id}.json`;
+            zip.file(filename, JSON.stringify(importData, null, 2));
+          });
+
+          zip.generateAsync({ type: "blob" }).then((blob) => {
+            resolve(blob);
+          });
+        });
+      }
+
+      async function processExcel(file) {
+        status.textContent = "📖 Verarbeite Datei …";
+        const excel = await readExcel(file);
+
+        const json = excel.map(toJson);
+
+        status.textContent = "📖 Bereite Download vor …";
+
+        const zip = await createZip(json);
+
+        saveAs(zip, "anmeldungen.zip");
+        status.textContent = "✅ ZIP-Datei wurde erstellt und heruntergeladen.";
+      }
+    </script>
+  </body>
+</html>
